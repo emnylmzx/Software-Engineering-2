@@ -14,52 +14,47 @@ import java.sql.PreparedStatement;
 import java.util.Scanner;
 public class Main {
 
-    public static void connect() throws ClassNotFoundException {
+    public static Connection connect() throws ClassNotFoundException, SQLException {
         Class.forName("org.sqlite.JDBC");
         // connection string
         var url = "jdbc:sqlite:C:/Users/emnyl/Desktop/ReadingHabits.db";
 
-        try (var conn = DriverManager.getConnection(url)) {
-            System.out.println("Connection to SQLite has been established.");
-        } catch (SQLException e) {
-            System.out.println(e.getMessage());
-        }
+        var conn = DriverManager.getConnection(url);
+        System.out.println("Connection to SQLite has been established.");
+
+        return conn;
+
     }
+
+
     public static void Create_tables(){
-        try {
-            connect();
-            String url="jdbc:sqlite:C:/Users/emnyl/Desktop/ReadingHabits.db";
-            try(var conn=DriverManager.getConnection(url)){
-                if(conn!=null) {
-                    var meta = conn.getMetaData();
-                    System.out.println("The driver name is " + meta.getDriverName());
-                    System.out.println("A new database has been created.");
-                }
-                var User_table = "CREATE TABLE IF NOT EXISTS Users ("
-                        + "	userID INTEGER PRIMARY KEY,"
-                        + "	Name TEXT NOT NULL,"
-                        +  "Age INTEGER,"
-                        + "	Gender TEXT"
-                        + ");";
-                var Reading_Habits="CREATE TABLE IF NOT EXISTS ReadingHabit("
-                        + "habitID INTEGER PRIMARY KEY,"
-                        +"userID INTEGER,"
-                        +"book TEXT,"
-                        +"pagesRead INTEGER,"
-                        +"submissionMoment DATETIME,"
-                        +"FOREIGN KEY(userID) REFERENCES Users(userID)"
-                        +");";
-                conn.createStatement().execute("PRAGMA foreign_keys = ON;");
-                conn.createStatement().execute(User_table);
-                conn.createStatement().execute(Reading_Habits);
-            }catch (SQLException e) {
-                throw new RuntimeException(e);
+        String url="jdbc:sqlite:C:/Users/emnyl/Desktop/ReadingHabits.db";
+        try(var conn=DriverManager.getConnection(url)){
+            if(conn!=null) {
+                var meta = conn.getMetaData();
+                System.out.println("The driver name is " + meta.getDriverName());
+                System.out.println("A new database has been created.");
             }
-
-
-        } catch (ClassNotFoundException e) {
+            var User_table = "CREATE TABLE IF NOT EXISTS Users ("
+                    + "	userID INTEGER PRIMARY KEY,"
+                    +  "Age INTEGER,"
+                    + "	Gender TEXT"
+                    + ");";
+            var Reading_Habits="CREATE TABLE IF NOT EXISTS ReadingHabit("
+                    + "habitID INTEGER PRIMARY KEY,"
+                    +"userID INTEGER,"
+                    +"book TEXT,"
+                    +"pagesRead INTEGER,"
+                    +"submissionMoment DATETIME,"
+                    +"FOREIGN KEY(userID) REFERENCES Users(userID)"
+                    +");";
+            conn.createStatement().execute("PRAGMA foreign_keys = ON;");
+            conn.createStatement().execute(User_table);
+            conn.createStatement().execute(Reading_Habits);
+        }catch (SQLException e) {
             throw new RuntimeException(e);
         }
+
 
     }
 
@@ -82,76 +77,109 @@ public class Main {
         return list.subList(1, list.size());
     }
 
-  public static String AddUser(int userID, String Name,int Age, String Gender){
-          User user=new User(userID,Age,Gender);
-          user.AddUser(user);
-          var Sql_add=
-                  """
-                  INSERT INTO User_table(UserID,Name,Age,Gender)
-                  VALUES(%d,%s,%d,%s)
-                  """.formatted(userID,Name,Age,Gender);
-          return Sql_add;
-  } // add user to database
-    public static String User_habit(int userID){
+  public static void AddUser(int userID,int Age, String Gender) throws SQLException, ClassNotFoundException {
+      Connection c=connect();
+
+      User user=new User(userID,Age,Gender);
+      user.AddUser(user);
+
+      var Sql_add=
+              """
+              INSERT INTO users(userID,age,gender)
+              VALUES(%d,%d,'%s');
+              """.formatted(userID,Age,Gender);
+      System.out.println(Sql_add);
+       var statement=c.createStatement();
+       statement.executeUpdate(Sql_add);
+
+      System.out.println("The user added:"+user.toString());
+  }
+
+  // add user to database
+    public static void User_habit(int userID) throws SQLException, ClassNotFoundException {
+        Connection c=connect();
         var Sql= """
                 SELECT*
                 FROM 
-                Reading_Habits
+                reading_habits
                 WHERE
                 userID=%d;
                 """.formatted(userID);
-           return Sql;
+        var statement=c.createStatement();
+        ResultSet rs=statement.executeQuery(Sql);
+        while (rs.next()) {
+            System.out.println("User ID: " + rs.getInt("userID"));
+            System.out.println("Habit: " + rs.getString("habitID"));
+        }
     } // it will give you one specific user's habit with their id
-    public static String Change_title(String Title, String new_Title){
+    public static void Change_title(String Title, String new_Title) throws SQLException, ClassNotFoundException {
+        Connection c=connect();
         var sql= """
-                UPDATE Reading_Habits
+                UPDATE reading_habits
                 SET book='%s'
                 WHERE
                 book='%s';
                 """.formatted(new_Title,Title);
-        return sql;
+        var statement=c.createStatement();
+        int rowsUpdated = statement.executeUpdate(sql);
+        System.out.println(rowsUpdated);
+
     } // replace the title of a book
-    public static String Delete_Readinghabit_record(int HabitID){
+    public static void Delete_Readinghabit_record(int HabitID) throws SQLException, ClassNotFoundException {
+        Connection c=connect();
         var sql= """
-                DELETE FROM Reading_Habits
-                WHERE HabitID='%d';
+                DELETE FROM reading_habits
+                WHERE HabitID=%d;
                 """.formatted(HabitID);
-        return sql;
+        var statement=c.createStatement();
+        int Delete = statement.executeUpdate(sql);
+        System.out.println(Delete+" Deleted");
     } //  delete one specific habit
-    public static String Mean_age(){
+    public static void Mean_age() throws SQLException, ClassNotFoundException {
+        Connection c=connect();
         var sql= """
                 SELECT AVG(Age)
-                FROM User_table
+                FROM users
                 """;
-        return sql;
+        var statement=c.createStatement();
+        ResultSet rs=statement.executeQuery(sql);
+        System.out.println("The Average Age:"+rs.getDouble(1));
+
     } // sum(user age)/ Num of users
-    public static String Total_readers(String book, int page){
-        var sql= """
-                SELECT COUNT(*) AS userID FROM Reading_Habits
-                WHERE book='%s' AND pagesRead ='%d';
-                """.formatted(book,page);
-        return sql;
+    public static void Total_readers(String book, int page) throws SQLException, ClassNotFoundException {
+        Connection c;
+        c = connect();
+        var sql = """
+        SELECT COUNT(*) AS total_readers
+        FROM reading_habits
+        WHERE book='%s' AND pagesRead = %d;
+        """.formatted(book, page);
+        var statement=c.createStatement();
+        ResultSet rs=statement.executeQuery(sql);
+        System.out.println(rs.getInt("total_readers"));
+
     } // which book which pages: total users
-    public static String All_Pages_read(String book){ //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+    public static void All_Pages_read() throws SQLException, ClassNotFoundException {
+        Connection c=connect();
         var sql= """
-                SELECT pagesRead  FROM Reading_Habits
-                WHERE COUNT (userID)='%d'
-                """.formatted(Upload_Readers().size());
-        return sql;
+                SELECT pagesRead  FROM reading_habits
+                 SUM(pagesRead)
+                """;
+        var statement=c.createStatement();
+        ResultSet rs=statement.executeQuery(sql);
+        System.out.println(rs.getInt(1));
     } //
-    public static String More_than_one(){
+    public static void More_than_one() throws SQLException, ClassNotFoundException {
+        Connection c=connect();
         var sql= """
                 SELECT COUNT(*)userID
-                FROM Reading_Habits
+                FROM reading_habits
                 WHERE pagesRead>1;
                 """;
-        return sql;
+        var statement=c.createStatement();
+        ResultSet rs=statement.executeQuery(sql);
+        System.out.println(rs.getInt(1));
     } // return total user read >1;
-    public static void Upload_Table(){
-        var sql= """
-                
-                """;
-    }
     public static ArrayList<User> Upload_Readers(){
         ArrayList<User> users=new ArrayList<>();
         List<List<String>> user_data=Csv_to_Array("C:\\Users\\emnyl\\Desktop\\Software Languages\\Java\\BookTracker\\Data\\users.csv");
@@ -187,7 +215,7 @@ public class Main {
         for (int i = 0; i < Upload_Readers().size(); i++) {
             User user = Upload_Readers().get(i);
             var sql = """
-                    INSERT INTO User_table(userID,age,gender)
+                    INSERT INTO users(userID,age,gender)
                     VALUES('%d','%d','%s');
                     """.formatted(user.getUserID(), user.getAge(), user.getGender());
             System.out.println(sql);
@@ -196,62 +224,61 @@ public class Main {
         for (int i = 0; i < Upload_Habits().size(); i++) {
             Reading_Habit habit = Upload_Habits().get(i);
             var sql = """
-                    INSERT INTO Reading_Habits(habitID,userID,pagesRead,book,submissionMoment)
+                    INSERT INTO reading_habits(habitID,userID,pagesRead,book,submissionMoment)
                     VALUES('%d','%d','%d','%s','%s');
                     """.formatted(habit.getHabitID(), habit.getUserID(), habit.getPagesRead(), habit.getBook(), habit.getSubmissionMoment());
             System.out.println(sql);
         }
 
     }
-    public static void main(String[] args) {
+    public static void main(String[] args) throws ClassNotFoundException, SQLException {
         Scanner scanner=new Scanner(System.in);
-        Boolean Runner=true;
-        while(Runner){
+
             System.out.println("Add User:1\nReading habit data for a certain user:2\nChange the title of a book:3\nDelete a record:4\nMean age of the users:5\nTotal number of users that have read pages from a specific book:6\nTotal number of pages read by all users:7\nTotal number of users that have read more than one book:8");
             int Input=scanner.nextInt();
             switch (Input){
                 case 1:
                     System.out.println("User ID:");
                     int userID= scanner.nextInt();
-                    System.out.println("User name:");
-                    String Name=scanner.nextLine();
+                    scanner.nextLine();
                     System.out.println("Age:");
                     int Age= scanner.nextInt();
+                    scanner.nextLine();
                     System.out.println("Gender:{f/m}");
                     String Gender=scanner.nextLine();
-                    System.out.println(AddUser(userID,Name,Age,Gender));
+                    AddUser(userID,Age,Gender);
                 case 2:
                     System.out.println("Enter User ID:");
                      int ID=scanner.nextInt();
-                    System.out.println(User_habit(ID));
+                    User_habit(ID);
                 case 3:
                     System.out.println("Current Title:");
                     String Title=scanner.nextLine();
+                    scanner.nextLine();
                     System.out.println("New Title:");
                     String new_Title=scanner.nextLine();
-                    System.out.println(Change_title(Title,new_Title));
+                    Change_title(Title,new_Title);
                 case 4:
                     System.out.println("Enter ID:");
                     int id=scanner.nextInt();
-                    System.out.println(Delete_Readinghabit_record(id));
+                   Delete_Readinghabit_record(id);
                 case 5:
-                    System.out.println(Mean_age());
+                    Mean_age();
                 case 6:
                     System.out.println("Book Name:");
                     String name=scanner.nextLine();
+                    scanner.nextLine();
                     System.out.println("Page:");
                     int page=scanner.nextInt();
-                    System.out.println(Total_readers(name,page));
+                   Total_readers(name,page);
                 case 7:
-                    System.out.println("Which book:");
-                    String book=scanner.nextLine();
-                    System.out.println( All_Pages_read(book));
+                    All_Pages_read();
                 case 8:
-                    System.out.println(More_than_one());
+                    More_than_one();
+                case 9: Create_tables();
                 default:
                     System.out.println("Invalid Input please try again.");
 
             }
         }
-    }
 }
